@@ -2,12 +2,24 @@ from keras import backend as K
 from keras.engine.topology import Layer
 
 from keras.models import Model
-from keras.layers import Input, Dense
+from keras.layers import Input, Dense, Embedding
+
+import config as cfg
 
 
+def create_embedding_model(weights):
 
-def create_embedding_model():
-    raise NotImplementedError
+    input_layer = Input(shape=(cfg.num_of_words + 1,))
+    output_layer = Embedding(cfg.num_of_words + 1,
+                             cfg.embedding_size,
+                             mask_zero = True,
+                             trainable = False,
+                             weights = [weights],
+                             input_length=cfg.max_sentence_len)
+
+    model = Model(input_layer, output_layer)
+
+    return model
 
 
 def create_k_max_pooling_model():
