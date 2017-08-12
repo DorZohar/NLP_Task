@@ -2,6 +2,7 @@ import multiprocessing
 from gensim.corpora.wikicorpus import WikiCorpus
 from gensim.models.word2vec import Word2Vec
 from gensim.models import TfidfModel
+from nltk.tokenize import ToktokTokenizer
 
 # logging is important to get the state of the functions
 import logging
