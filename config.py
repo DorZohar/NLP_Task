@@ -20,6 +20,8 @@ debug_level = 1
 # Number of epochs for the training step
 epochs = 1
 
+# Number of outputs of K-max layer (number of chosen values)
+K_value=5
 
 def debug_print(string, level):
     if level > debug_level:
