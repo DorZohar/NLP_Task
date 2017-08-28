@@ -1,3 +1,4 @@
+import threading
 
 from gensim.models import Word2Vec
 from nltk.tokenize import ToktokTokenizer
@@ -39,14 +40,41 @@ def process_line(line):
     return w2v_sequence
 
 
+class threadsafe_iter:
+    """Takes an iterator/generator and makes it thread-safe by
+    serializing call to the `next` method of given iterator/generator.
+    """
+    def __init__(self, it):
+        self.it = it
+        self.lock = threading.Lock()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with self.lock:
+            return self.it.__next__()
+
+
+def threadsafe_generator(f):
+    """A decorator that takes a generator function and makes it thread-safe.
+    """
+
+    def g(*a, **kw):
+        return threadsafe_iter(f(*a, **kw))
+
+    return g
+
+
 # Function that yields a batch for training in every call
+@threadsafe_generator
 def generator(path):
     sent1_batch = []
     sent2_batch = []
     labels_batch = []
     size = 0
     while True:
-        with open(path, 'r') as file:
+        with open(path, 'r', encoding='utf-8') as file:
             file.readline()
             for line in file:
                 text_label, _, _, _, _, sent1, sent2, _, _, _, _, _, _, _, _ = line.split('\t')
@@ -75,6 +103,7 @@ def generator(path):
                     sent1_batch = []
                     sent2_batch = []
                     labels_batch = []
+                    size = 0
 
 
 # Reading the data, cleaning and tokenizing (Transforming the text for the mission)
@@ -94,8 +123,9 @@ def compile_model():
 
     concat = keras.layers.concatenate([lstm1, lstm2])
 
-    dense1 = keras.layers.Dense(300, activation='tanh', name='dense1')(concat)
-    output = keras.layers.Dense(3, activation='softmax', name='output')(dense1)
+    dense1 = keras.layers.Dense(100, activation='tanh', name='dense1')(concat)
+    dropout = keras.layers.Dropout(0.25, name='dropout')(dense1)
+    output = keras.layers.Dense(3, activation='softmax', name='output')(dropout)
 
     model = keras.models.Model([input1, input2], output)
 
@@ -114,9 +144,10 @@ def train_model(model, train_file, valid_file):
     model.fit_generator(
         epochs=cfg.epochs,
         generator=generator(train_file),
-        steps_per_epoch=50,
+        steps_per_epoch=5000,
         validation_data=generator(valid_file),
-        validation_steps=50,
+        validation_steps=500,
+        workers=6,
         verbose=1,
     )
 

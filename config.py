@@ -12,14 +12,16 @@ batch_size = 100
 word2vec_path = 'C:\\Wiki\\wiki.word2vec.model'
 
 # Max size for a sentence (Larger sentences are trimmed, shorter are padded)
-max_sentence_len = 100
+max_sentence_len = 30
 
 # Only debug prints with level of at least debug_level will be printed
 debug_level = 1
 
 # Number of epochs for the training step
-epochs = 1
+epochs = 3
 
+# Number of outputs of K-max layer (number of chosen values)
+K_value=5
 
 def debug_print(string, level):
     if level > debug_level:
