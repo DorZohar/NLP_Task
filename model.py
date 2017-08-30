@@ -5,6 +5,8 @@ from nltk.tokenize import ToktokTokenizer
 import numpy as np
 import config as cfg
 from keras.preprocessing.sequence import pad_sequences
+from layers import create_embedding_model
+from max_polling import create_k_max_pooling_model
 import keras
 
 word_vectors = {}
@@ -118,8 +120,10 @@ def compile_model():
     input1 = keras.layers.Input(shape=(None, cfg.embedding_size), name='sentence1')
     input2 = keras.layers.Input(shape=(None, cfg.embedding_size), name='sentence2')
 
-    lstm1 = keras.layers.recurrent.LSTM(300, name='lstm1')(input1)
-    lstm2 = keras.layers.recurrent.LSTM(300, name='lstm2')(input2)
+    lstm1 = keras.layers.recurrent.LSTM(300, name='lstm1')(create_embedding_model(input1))
+    k_max_pool_of_input_2 = create_k_max_pooling_model(create_embedding_model(input2))
+
+    lstm2 = keras.layers.recurrent.LSTM(300, name='lstm2')(k_max_pool_of_input_2)
 
     concat = keras.layers.concatenate([lstm1, lstm2])
 
