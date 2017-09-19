@@ -1,6 +1,6 @@
 
 # Top N words to keep embeddings for
-num_of_words = 10000
+num_of_words = 572123
 
 # Size of the embedding vector
 embedding_size = 300
@@ -21,7 +21,19 @@ debug_level = 1
 epochs = 3
 
 # Number of outputs of K-max layer (number of chosen values)
-K_value=5
+K_value = 5
+
+kmax_lstm_hidden_layer = 10
+
+guess_lstm_hidden_layer = 10
+
+lstm1_hidden_layer = 300
+
+denseSize = 300
+
+dropoutRate = 0.25
+
+numClasses = 3
 
 def debug_print(string, level):
     if level > debug_level:

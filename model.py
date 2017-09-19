@@ -5,11 +5,11 @@ from nltk.tokenize import ToktokTokenizer
 import numpy as np
 import config as cfg
 from keras.preprocessing.sequence import pad_sequences
-from layers import create_embedding_model
+from layers import create_2_seq_LSTM_model, create_classifier_model
+import layers
 from max_polling import create_k_max_pooling_model
 import keras
 
-word_vectors = {}
 label_dict = {
     'neutral': 0,
     'entailment': 1,
@@ -23,10 +23,10 @@ known_tokens = 0
 
 
 def load_word2vec():
-    global word_vectors
 
     w2v = Word2Vec.load(cfg.word2vec_path)
-    word_vectors = w2v.wv
+    layers.word_vectors = w2v.wv
+
     del w2v
 
 
@@ -36,7 +36,7 @@ def process_line(line):
     tokenized = tok.tokenize(line)
     total_tokens += len(tokenized)
 
-    w2v_sequence = [word_vectors[t] for t in tokenized if t in word_vectors]
+    w2v_sequence = [layers.word_vectors[t] for t in tokenized if t in layers.word_vectors]
     known_tokens += len(w2v_sequence)
 
     return w2v_sequence
@@ -71,6 +71,7 @@ def threadsafe_generator(f):
 # Function that yields a batch for training in every call
 @threadsafe_generator
 def generator(path):
+    print(1)
     sent1_batch = []
     sent2_batch = []
     labels_batch = []
@@ -101,6 +102,8 @@ def generator(path):
                     output = np.zeros((len(labels_batch), len(label_dict.keys())))
                     for i in range(len(labels_batch)):
                         output[i][labels_batch[i]] = 1
+                    print(inputs)
+                    print(output)
                     yield inputs, output
                     sent1_batch = []
                     sent2_batch = []
@@ -117,26 +120,25 @@ def preprocess():
 # Build the main model and compile
 def compile_model():
 
-    input1 = keras.layers.Input(shape=(None, cfg.embedding_size), name='sentence1')
-    input2 = keras.layers.Input(shape=(None, cfg.embedding_size), name='sentence2')
+    input1 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence1')
+    input2 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence2')
 
-    lstm1 = keras.layers.recurrent.LSTM(300, name='lstm1')(create_embedding_model(input1))
-    k_max_pool_of_input_2 = create_k_max_pooling_model(create_embedding_model(input2))
+    #embedding1 = create_embedding_model(word_vectors)(input1)
 
-    lstm2 = keras.layers.recurrent.LSTM(300, name='lstm2')(k_max_pool_of_input_2)
+    lstm1 = keras.layers.recurrent.LSTM(cfg.lstm1_hidden_layer, name='lstm1')(input1)
 
-    concat = keras.layers.concatenate([lstm1, lstm2])
+    indexes, kmax_pooling = create_k_max_pooling_model()(input2)
 
-    dense1 = keras.layers.Dense(100, activation='tanh', name='dense1')(concat)
-    dropout = keras.layers.Dropout(0.25, name='dropout')(dense1)
-    output = keras.layers.Dense(3, activation='softmax', name='output')(dropout)
+    guess = create_2_seq_LSTM_model()([lstm1, input2, indexes])
+
+    output = create_classifier_model()([guess, kmax_pooling])
 
     model = keras.models.Model([input1, input2], output)
 
     model.compile(
-        optimizer=keras.optimizers.rmsprop(),
+        optimizer='RMSProp',
         loss='categorical_crossentropy',
-        metrics=['acc'],
+        metrics=['acc']
     )
 
     return model
