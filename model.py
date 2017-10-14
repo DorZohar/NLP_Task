@@ -102,8 +102,8 @@ def generator(path):
                     output = np.zeros((len(labels_batch), len(label_dict.keys())))
                     for i in range(len(labels_batch)):
                         output[i][labels_batch[i]] = 1
-                    print(inputs)
-                    print(output)
+                    #print(inputs)
+                    #print(output)
                     yield inputs, output
                     sent1_batch = []
                     sent2_batch = []
@@ -127,11 +127,13 @@ def compile_model():
 
     lstm1 = keras.layers.recurrent.LSTM(cfg.lstm1_hidden_layer, name='lstm1')(input1)
 
-    indexes, kmax_pooling = create_k_max_pooling_model()(input2)
+    indexes, kmax_pooling = create_k_max_pooling_model(input2)
 
-    guess = create_2_seq_LSTM_model()([lstm1, input2, indexes])
+    guess = create_2_seq_LSTM_model(lstm1, input2, indexes)
 
-    output = create_classifier_model()([guess, kmax_pooling])
+    output = create_classifier_model(guess, kmax_pooling)
+
+    #output = create_classifier_model(kmax_pooling, kmax_pooling)
 
     model = keras.models.Model([input1, input2], output)
 

@@ -25,7 +25,7 @@ K_value = 5
 
 kmax_lstm_hidden_layer = 10
 
-guess_lstm_hidden_layer = 10
+guess_lstm_hidden_layer = 150
 
 lstm1_hidden_layer = 300
 
