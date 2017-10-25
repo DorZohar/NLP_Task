@@ -1,6 +1,9 @@
 import threading
 
 from gensim.models import Word2Vec
+from keras.callbacks import ModelCheckpoint, EarlyStopping
+from keras.optimizers import RMSprop
+from keras.layers import LSTM, Bidirectional, Reshape, Multiply, Conv2D, MaxPooling2D, Dense, Dropout, Lambda
 from nltk.tokenize import ToktokTokenizer
 import numpy as np
 import config as cfg
@@ -9,6 +12,7 @@ from layers import create_2_seq_LSTM_model, create_classifier_model
 import layers
 from max_polling import create_k_max_pooling_model
 import keras
+import tensorflow as tf
 
 label_dict = {
     'neutral': 0,
@@ -71,7 +75,6 @@ def threadsafe_generator(f):
 # Function that yields a batch for training in every call
 @threadsafe_generator
 def generator(path):
-    print(1)
     sent1_batch = []
     sent2_batch = []
     labels_batch = []
@@ -102,8 +105,6 @@ def generator(path):
                     output = np.zeros((len(labels_batch), len(label_dict.keys())))
                     for i in range(len(labels_batch)):
                         output[i][labels_batch[i]] = 1
-                    #print(inputs)
-                    #print(output)
                     yield inputs, output
                     sent1_batch = []
                     sent2_batch = []
@@ -118,22 +119,22 @@ def preprocess():
 
 
 # Build the main model and compile
-def compile_model():
+def compile_model1():
 
     input1 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence1')
     input2 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence2')
 
     #embedding1 = create_embedding_model(word_vectors)(input1)
 
-    lstm1 = keras.layers.recurrent.LSTM(cfg.lstm1_hidden_layer, name='lstm1')(input1)
+    lstm1 = keras.layers.recurrent.LSTM(cfg.lstm1_hidden_layer,
+                                        recurrent_dropout=cfg.lstm1_rec_dropout,
+                                        dropout=cfg.lstm1_input_dropout)(input1)
 
     indexes, kmax_pooling = create_k_max_pooling_model(input2)
 
     guess = create_2_seq_LSTM_model(lstm1, input2, indexes)
 
     output = create_classifier_model(guess, kmax_pooling)
-
-    #output = create_classifier_model(kmax_pooling, kmax_pooling)
 
     model = keras.models.Model([input1, input2], output)
 
@@ -146,17 +147,79 @@ def compile_model():
     return model
 
 
+def compile_model2():
+
+    input1 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence1')
+    input2 = keras.layers.Input(shape=(cfg.max_sentence_len, cfg.embedding_size), name='sentence2')
+
+    #embedding1 = create_embedding_model(word_vectors)(input1)
+
+    lstm1 = Bidirectional(LSTM(cfg.lstm1_hidden_layer,
+                               dropout=cfg.lstm1_input_dropout,
+                               recurrent_dropout=cfg.lstm1_rec_dropout,
+                               return_sequences=True,
+                               ))(input1)
+    lstm2 = Bidirectional(LSTM(cfg.lstm1_hidden_layer,
+                               dropout=cfg.lstm1_input_dropout,
+                               recurrent_dropout=cfg.lstm1_rec_dropout,
+                               return_sequences=True,
+                               ))(input2)
+
+    lstm1 = Reshape(target_shape=[cfg.max_sentence_len, 1, cfg.embedding_size * 2])(lstm1)
+    lstm2 = Reshape(target_shape=[1, cfg.max_sentence_len, cfg.embedding_size * 2])(lstm2)
+
+    mult = Multiply()([lstm1, lstm2])
+
+    mult = Lambda(lambda x: tf.reduce_sum(x, axis=-1, keep_dims=True))(mult)
+
+    cnn1 = Conv2D(filters=100, kernel_size=(3, 3), strides=(1, 1), activation=cfg.activation)(mult)
+    pooling1 = MaxPooling2D()(cnn1)
+    cnn2 = Conv2D(filters=100, kernel_size=(3, 3), strides=(1, 1), activation=cfg.activation)(pooling1)
+    pooling2 = MaxPooling2D()(cnn2)
+    cnn3 = Conv2D(filters=100, kernel_size=(5, 5), strides=(1, 1), activation=cfg.activation)(pooling2)
+
+    cnnFlat = Reshape(target_shape=[-1])(cnn3)
+
+    dense1 = Dense(cfg.denseSize, activation=cfg.activation)(cnnFlat)
+    dense1 = Dropout(rate=cfg.dropoutRate)(dense1)
+
+    output = Dense(cfg.numClasses, activation='softmax')(dense1)
+
+    model = keras.models.Model([input1, input2], output)
+
+    model.compile(
+        optimizer=RMSprop(),
+        loss='categorical_crossentropy',
+        metrics=['acc']
+    )
+
+    return model
+
+
+def compile_model():
+
+    if cfg.modelType == 1:
+        return compile_model1()
+    else:
+        return compile_model2()
+
+
 # Train the model
 def train_model(model, train_file, valid_file):
+
+    saveCallback = ModelCheckpoint(cfg.model_path, monitor='val_acc', verbose=0, save_best_only=True,
+                                   save_weights_only=True, mode='auto', period=1)
+    stoppingCallBack = EarlyStopping(monitor='val_acc', min_delta=0, patience=2, verbose=1, mode='auto')
 
     model.fit_generator(
         epochs=cfg.epochs,
         generator=generator(train_file),
-        steps_per_epoch=5000,
+        steps_per_epoch=235600 / cfg.batch_size,
         validation_data=generator(valid_file),
-        validation_steps=500,
+        validation_steps=235600 / cfg.batch_size / 10,
         workers=6,
         verbose=1,
+        callbacks=[saveCallback, stoppingCallBack],
     )
 
     return model
@@ -174,7 +237,7 @@ if __name__ == '__main__':
 
     score = model.evaluate_generator(
         generator=generator('test.txt'),
-        steps=50,
+        steps=785,
     )
 
     print("Model accuracy: %s" % score[1])

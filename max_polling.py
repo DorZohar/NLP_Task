@@ -28,19 +28,19 @@ class K_max_pooling(Layer):
 #input - sentence
 #output - k vectors of tuples, (index of word, sentence)
 def create_k_max_pooling_model(input_layer):
-    output_layer = LSTM(1, # cfg.kmax_lstm_hidden_layer,
+    output_layer = LSTM(cfg.kmax_lstm_hidden_layer,
                         input_shape=(cfg.max_sentence_len, cfg.embedding_size),
-                        return_sequences=True)(input_layer)
+                        return_sequences=True,
+                        recurrent_dropout=cfg.kmax_lstm_rec_dropout,
+                        dropout=cfg.kmax_lstm_input_dropout)(input_layer)
 
-    #scores = TimeDistributed(Dense(1, activation='tanh'))(output_layer)
+    scores = TimeDistributed(Dense(1, activation='tanh'))(output_layer)
 
-    scores = output_layer
+    #scores = output_layer
 
     scores = Lambda(lambda x: tf.squeeze(x, -1))(scores)
 
-    print(scores)
     indices_and_vals = K_max_pooling()(scores)
-    print(indices_and_vals)
 
     indices = tf.cast(indices_and_vals[1], 'int32')
     #values = indices_and_vals[0]

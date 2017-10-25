@@ -3,8 +3,8 @@ from keras.engine.topology import Layer
 
 from keras.models import Model
 import tensorflow as tf
-from keras.layers import Input, Dense, Embedding, LSTM, Lambda, concatenate, Dropout, Flatten, Concatenate, Reshape, \
-    Multiply, Bidirectional
+from keras.layers import Input, Dense, Embedding, LSTM, Lambda, Dropout, Flatten, Concatenate, Reshape, \
+    Multiply, Bidirectional, RepeatVector, Conv2D, AveragePooling2D
 
 import config as cfg
 
@@ -22,36 +22,33 @@ def create_embedding_model(input_layer):
 
 def create_2_seq_LSTM_model(sentence1, sentence2, indices_to_remove):
 
+    sentence1 = RepeatVector(cfg.max_sentence_len)(sentence1)
+
     # Currently not handling batches, as indices are [batch,index,1]
     all_guesses = []
-    bi_lstm = Bidirectional(LSTM(cfg.guess_lstm_hidden_layer, return_sequences=True, input_shape=(None, cfg.embedding_size)))
+    bi_lstm = Bidirectional(LSTM(cfg.guess_lstm_hidden_layer,
+                                 return_sequences=True,
+                                 input_shape=(None, cfg.embedding_size),
+                                 recurrent_dropout=cfg.guess_lstm_rec_dropout,
+                                 dropout=cfg.guess_lstm_input_dropout))
     dense = Dense(cfg.embedding_size)
     for word_index in range(cfg.K_value):
 
-        print(indices_to_remove)
-
         sentenceMask = 1.0 - tf.expand_dims(tf.one_hot(indices_to_remove[:, word_index], cfg.max_sentence_len), -1)
-        print(sentenceMask)
 
         # sentencesWithRemovedWords = Lambda(lambda x: tf.map_fn(lambda elems: elems[0] * tf.expand_dims(1 - tf.one_hot(elems[1], cfg.max_sentence_len), -1),
         #                                       [x, indices_to_remove[:, word_index]],
         #                                       dtype=tf.float32))(sentence2)
 
         sentencesWithRemovedWords = Lambda(lambda x: x * sentenceMask)(sentence2)
+        sentencesWithRemovedWords = Concatenate()([sentencesWithRemovedWords, sentence1])
 
         lstm_outputs = bi_lstm(sentencesWithRemovedWords)
         curGuess = Lambda(lambda x: tf.map_fn(lambda elems: elems[0][elems[1]],
                                               [x, indices_to_remove[:, word_index]],
                                               dtype=tf.float32))(lstm_outputs)
 
-        # guess_output = Dense(cfg.num_of_words)(curGuess)
-        # lamb = Lambda(K.argmax)(guess_output)
-        # embedding = create_embedding_model(lamb)
-        # curGuess = Lambda(lambda x: K.expand_dims(x, -2))(embedding)
-
-        print(curGuess)
         curGuess = dense(curGuess)
-        print(curGuess)
         curGuess = Lambda(lambda x: K.expand_dims(x, -2))(curGuess)
 
         all_guesses += [curGuess]
@@ -64,10 +61,22 @@ def create_2_seq_LSTM_model(sentence1, sentence2, indices_to_remove):
 
 def create_classifier_model(guess, kmax_pooling):
 
-    mult = Multiply()([guess, kmax_pooling])
-    dot = Lambda(lambda x: K.sum(x, axis=-1))(mult)
+    guess = Reshape((cfg.K_value, 1, cfg.embedding_size))(guess)
+    kmax_pooling = Reshape((cfg.K_value, 1, cfg.embedding_size))(kmax_pooling)
 
-    dense1 = Dense(cfg.denseSize, input_shape=(cfg.K_value,), activation='tanh', name='dense1')(dot)
+    con = Concatenate(axis=1)([guess, kmax_pooling])
+    con = Reshape((cfg.K_value, 2 * cfg.embedding_size, 1))(con)
+
+    convLayer = Conv2D(filters=cfg.filters,
+                       kernel_size=(1, 2*cfg.embedding_size),
+                       activation=cfg.activation,
+                       data_format='channels_last')(con)
+
+    avgPooling = AveragePooling2D(pool_size=(cfg.K_value, 1))(convLayer)
+
+    avgPooling = Reshape((cfg.filters, ))(avgPooling)
+
+    dense1 = Dense(cfg.denseSize, input_shape=(cfg.filters,), activation='tanh', name='dense1')(avgPooling)
     dropout = Dropout(cfg.dropoutRate, name='dropout')(dense1)
     output = Dense(cfg.numClasses, activation='softmax', name='output')(dropout)
 
