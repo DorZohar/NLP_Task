@@ -1,6 +1,6 @@
 import threading
 
-from gensim.models import Word2Vec
+from gensim.models import KeyedVectors
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.optimizers import RMSprop
 from keras.layers import LSTM, Bidirectional, Reshape, Multiply, Conv2D, MaxPooling2D, Dense, Dropout, Lambda
@@ -27,11 +27,7 @@ known_tokens = 0
 
 
 def load_word2vec():
-
-    w2v = Word2Vec.load(cfg.word2vec_path)
-    layers.word_vectors = w2v.wv
-
-    del w2v
+    layers.word_vectors = KeyedVectors.load_word2vec_format(cfg.word2vec_path, binary=True)
 
 
 def process_line(line):
