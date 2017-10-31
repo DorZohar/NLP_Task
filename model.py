@@ -135,7 +135,7 @@ def compile_model1():
     model = keras.models.Model([input1, input2], output)
 
     model.compile(
-        optimizer='RMSProp',
+        optimizer=RMSprop(cfg.learnRate),
         loss='categorical_crossentropy',
         metrics=['acc']
     )
@@ -210,9 +210,9 @@ def train_model(model, train_file, valid_file):
     model.fit_generator(
         epochs=cfg.epochs,
         generator=generator(train_file),
-        steps_per_epoch=235600 / cfg.batch_size,
+        steps_per_epoch=352700 / cfg.batch_size,
         validation_data=generator(valid_file),
-        validation_steps=235600 / cfg.batch_size / 10,
+        validation_steps=40000 / cfg.batch_size,
         workers=6,
         verbose=1,
         callbacks=[saveCallback, stoppingCallBack],
@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
     score = model.evaluate_generator(
         generator=generator('test.txt'),
-        steps=785,
+        steps=10000 / cfg.batch_size,
     )
 
     print("Model accuracy: %s" % score[1])

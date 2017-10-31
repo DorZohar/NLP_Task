@@ -9,7 +9,7 @@ embedding_size = 300
 batch_size = 100
 
 # Path of the trained word2vec
-word2vec_path = 'C:\\Wiki\\wiki.word2vec.model'
+word2vec_path = 'wiki.word2vec.bin'
 
 # Max size for a sentence (Larger sentences are trimmed, shorter are padded)
 max_sentence_len = 30
@@ -21,21 +21,21 @@ debug_level = 1
 epochs = 20
 
 # Number of outputs of K-max layer (number of chosen values)
-K_value = 5
+K_value = 8
 
 filters = 300
 
 kmax_lstm_hidden_layer = 10
 kmax_lstm_rec_dropout = 0.1
-kmax_lstm_input_dropout = 0.2
+kmax_lstm_input_dropout = 0.25
 
 guess_lstm_hidden_layer = 150
 guess_lstm_rec_dropout = 0.1
-guess_lstm_input_dropout = 0.2
+guess_lstm_input_dropout = 0.25
 
 lstm1_hidden_layer = 300
 lstm1_rec_dropout = 0.1
-lstm1_input_dropout = 0.2
+lstm1_input_dropout = 0.25
 
 denseSize = 300
 
@@ -44,6 +44,8 @@ dropoutRate = 0.25
 numClasses = 3
 
 modelType = 1
+
+learnRate = 0.0005
 
 # Path of the final model
 model_path = 'Models/model%d_{epoch:02d}-{val_acc:.2f}.hdf5' % modelType
