@@ -1,17 +1,19 @@
 import threading
-import config as cfg
+
 from gensim.models import KeyedVectors
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.optimizers import RMSprop
 from keras.layers import LSTM, Bidirectional, Reshape, Multiply, Conv2D, MaxPooling2D, Dense, Dropout, Lambda
 from nltk.tokenize import ToktokTokenizer
 import numpy as np
+import config as cfg
 from keras.preprocessing.sequence import pad_sequences
 from layers import create_2_seq_LSTM_model, create_classifier_model
 import layers
 from max_polling import create_k_max_pooling_model
 import keras
 import tensorflow as tf
+import sys
 
 label_dict = {
     'neutral': 0,
@@ -220,29 +222,13 @@ def train_model(model, train_file, valid_file):
     return model
 
 
-def runModel(outputModelFilename):
-
-    load_word2vec()
-    model = compile_model()
-    train_model(model, 'train.txt', 'valid.txt')
-    model.save_weights(outputModelFilename)
-
-    score = model.evaluate_generator(
-        generator=generator('test.txt'),
-        steps=10000 / cfg.batch_size,
-    )
-
-    return score[1]
-
 if __name__ == '__main__':
 
+    path = sys.argv[1]
+
     load_word2vec()
     model = compile_model()
-
-    train_model(model, 'train.txt', 'valid.txt')
-    model.save_weights('model.h5py')
-
-    print('Fraction of known words: %f' % (known_tokens / total_tokens))
+    model.load_weights(path)
 
     score = model.evaluate_generator(
         generator=generator('test.txt'),
